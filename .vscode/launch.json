@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "CodeLens (Launch) - Process",
+            "request": "launch",
+            "mainClass": "Process",
+            "projectName": "ImageProcessDemo_e74fdedf"
+        },
+        {
+            "type": "java",
+            "name": "CodeLens (Launch) - Processoring",
+            "request": "launch",
+            "mainClass": "Processoring"
+        }
+    ]
+}
