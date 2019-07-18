@@ -70,7 +70,15 @@ class Process {
 
     public static void main(String[] args) {
         File[] images = {
-            new File("blur.png")
+            new File("vroom1.png"),
+            new File("vroom2.png"),
+            new File("vroom3.png"),
+            new File("vroom4.png"),
+            new File("vroom5.png"),
+            new File("vroom6.png"),
+            new File("vroom7.png"),
+            new File("vroom8.png")
+            
         };
         try {
             int[][] in = new int[images.length][];
@@ -90,7 +98,7 @@ class Process {
                 outFiles[i] = new File("out"+i+".png");
                 i++;
             }
-            for(int j = 0; j < 1; j ++) {
+            for(int j = 0; j < images.length; j ++) {
                 rgbs = in[j % images.length];
                 newrgbs = out[j % images.length];
                 long start_time = System.nanoTime();
@@ -104,7 +112,7 @@ class Process {
                 for(int k = 0; k < tb[0].length; k++) {
                     if(tb[0][k] > 0 && tb[1][k] > 0) {
                         for(int m = tb[1][k]; m < tb[0][k]; m ++) {
-                            newrgbs[k + tb[0].length * m] = ColorArr[0];
+                            newrgbs[k + tb[0].length * m] = ColorArr[4];
                         }
                     }
                 }
@@ -165,34 +173,23 @@ class Process {
     static int[][] scanImage(int[] codeArray, int width, int height, int[][] wallColors) {
         int[] wallBottoms = new int[width];
         int[] wallTops = new int[width];
-        Scanner sc = new Scanner(System.in);
-        ColorSequenceTree colTree = new ColorSequenceTree(wallColors);
-        //System.out.println(colTree);
-        for(int x = 0; x < width; x ++) {
-            int cbottom = -1;
-            int ctop = -1;
-            colTree.reset();
-            for(int yd = 0; yd < height; yd ++) {
-                int cpos = x + yd * width;
-                System.out.println("checking: " + yd + ", current top is: " + ctop + ", current color is:" + codeArray[cpos]);
-                if(colTree.hasNext(codeArray[cpos])) {
-                    colTree.progress(codeArray[cpos]);
-                    if(ctop == -1) {
-                        ctop = yd;
-                    }
-                } else {
-                    if(colTree.reachedEnd()) {
-                        cbottom = yd;
+        for(int i = 0; i < width; i++){
+            int currColor = 0;
+            int currTop = -1;
+            for(int j = 0; j < height; j++){
+                if((codeArray[j*width + i] == 10 || codeArray[j*width + i] == 11) && currTop == -1){
+                    currTop = j;
+                }else if((codeArray[j*width + i] == currColor || codeArray[j*width + i] == currColor + 1 || codeArray[j*width + i] == currColor -1) && currTop != -1){
+                    if(codeArray[j*width + i] == 6){
+                        wallTops[i] = currTop;
+                        wallBottoms[i] = j;
                         break;
-                    } else {
-                        colTree.reset();
-                        ctop = -1;
                     }
+                }else{
+                    currTop = -1;
                 }
+                currColor = codeArray[j*width + i]; 
             }
-            // String useless = sc.nextLine();
-            wallBottoms[x] = cbottom;
-            wallTops[x] = ctop;
         }
         int[][] out = {wallBottoms, wallTops};
         return out;
