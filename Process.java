@@ -70,17 +70,6 @@ class Process {
 
     public static void main(String[] args) {
         File[] images = {
-<<<<<<< HEAD
-<<<<<<< HEAD
-            new File("vroom1.png"),
-            new File("vroom2.png"),
-            new File("vroom3.png"),
-            new File("vroom4.png"),
-            new File("vroom5.png"),
-            new File("vroom6.png"),
-            new File("vroom7.png"),
-            new File("vroom8.png")
-=======
             new File ("wow.jpg"),
             new File ("blur.png"),
             new File ("vroom1.png"),
@@ -95,11 +84,6 @@ class Process {
             new File ("lightvroom2.png"),
             new File ("carvroom1.png"),
             new File ("carvroom2.png")
->>>>>>> Joshua
-            
-=======
-            new File("blur.png")
->>>>>>> 446d1dbe980825aab72cee34045266afe255fb62
         };
         try {
             int[][] in = new int[images.length][];
@@ -119,11 +103,7 @@ class Process {
                 outFiles[i] = new File("out"+i+".png");
                 i++;
             }
-<<<<<<< HEAD
             for(int j = 0; j < images.length; j ++) {
-=======
-            for(int j = 0; j < 1; j ++) {
->>>>>>> 446d1dbe980825aab72cee34045266afe255fb62
                 rgbs = in[j % images.length];
                 newrgbs = out[j % images.length];
                 long start_time = System.nanoTime();
@@ -137,11 +117,7 @@ class Process {
                 for(int k = 0; k < tb[0].length; k++) {
                     if(tb[0][k] > 0 && tb[1][k] > 0) {
                         for(int m = tb[1][k]; m < tb[0][k]; m ++) {
-<<<<<<< HEAD
                             newrgbs[k + tb[0].length * m] = ColorArr[4];
-=======
-                            newrgbs[k + tb[0].length * m] = ColorArr[0];
->>>>>>> 446d1dbe980825aab72cee34045266afe255fb62
                         }
                     }
                 }
@@ -203,7 +179,6 @@ class Process {
     static int[][] scanImage(int[] codeArray, int width, int height, int[][] wallColors) {
         int[] wallBottoms = new int[width];
         int[] wallTops = new int[width];
-<<<<<<< HEAD
         for(int i = 0; i < width; i++){
             int currColor = 0;
             int currTop = -1;
@@ -228,12 +203,22 @@ class Process {
                     currTop = -1;
                 }
                 currColor = codeArray[j*width + i]; 
-                if(j == height -1){
-                    wallTops[i] = -1;
-                    wallBottoms[i] = -1;
-                }
             }
-=======
+        }
+        int[] newWallTops = new int[width];
+        int[] newWallBottoms = new int[width];
+        removeOutliers(wallTops, wallBottoms, newWallTops, newWallBottoms);
+        
+        
+        int[][] out = {newWallBottoms, newWallTops};
+        fillEmptySpaces(out);
+        return out;
+    }
+
+    /*
+    static int[][] scanImageTree(int[] codeArray, int width, int height, int[][] wallColors) {
+        int[] wallBottoms = new int[width];
+        int[] wallTops = new int[width];
         Scanner sc = new Scanner(System.in);
         ColorSequenceTree colTree = new ColorSequenceTree(wallColors);
         //System.out.println(colTree);
@@ -262,7 +247,6 @@ class Process {
             // String useless = sc.nextLine();
             wallBottoms[x] = cbottom;
             wallTops[x] = ctop;
->>>>>>> 446d1dbe980825aab72cee34045266afe255fb62
         }
         int[] newWallTops = new int[width];
         int[] newWallBottoms = new int[width];
@@ -270,6 +254,7 @@ class Process {
         int[][] out = {newWallBottoms, newWallTops};
         return out;
     }
+    */
 
     static void removeOutliers(int[] inArrayTop, int[] inArrayBottom, int[] outArrayTop, int[] outArrayBottom){
         double mean = 0;
@@ -300,6 +285,39 @@ class Process {
             }else{
                 outArrayTop[i] = inArrayTop[i];
                 outArrayBottom[i] = inArrayBottom[i]; 
+            }
+        }
+    }
+
+    static void fillEmptySpaces(int[][] arr){
+        int x1 = 0; int x2 = 0; int y1 = 0; int y2 = 0;
+        for(int i = 1; i < arr[0].length - 2; i++){
+            if(arr[0][i] == 0){
+                if(arr[0][i-1] != 0){
+                    x1 = i-1;
+                    y1 = arr[0][i-1];
+                    int j = i + 1;
+                    while(arr[0][j] == 0 && j < arr[0].length - 1){
+                        j++;
+                    }
+                    x2 = j;
+                    y2 = arr[0][j];
+
+                    for(int k = x1; k < x2; k++){
+                        arr[0][k] = ((y1-y2)/(x1-x2)) * (k - x1) + y1;
+                    }   
+                    
+                    y1 = arr[1][i-1];
+                    y2 = arr[1][j];
+
+                    for(int k = x1; k < x2; k++){
+                        arr[1][k] = ((y1-y2)/(x1-x2)) * (k - x1) + y1;
+                    }   
+                    i = x2;
+                    //drawPixel(a, x1, y1, width, 3);
+                    System.out.println("x1, y1 =" + x1 + " " + y1 + " x2, y2 =" + x2 + " " + y2);
+
+                }
             }
         }
     }
