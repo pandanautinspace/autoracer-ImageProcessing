@@ -71,6 +71,7 @@ class Process {
     public static void main(String[] args) {
         File[] images = {
 <<<<<<< HEAD
+<<<<<<< HEAD
             new File("vroom1.png"),
             new File("vroom2.png"),
             new File("vroom3.png"),
@@ -79,6 +80,22 @@ class Process {
             new File("vroom6.png"),
             new File("vroom7.png"),
             new File("vroom8.png")
+=======
+            new File ("wow.jpg"),
+            new File ("blur.png"),
+            new File ("vroom1.png"),
+            new File ("vroom2.png"),
+            new File ("vroom3.png"),
+            new File ("vroom4.png"),
+            new File ("vroom5.png"),
+            new File ("vroom6.png"),
+            new File ("vroom7.png"),
+            new File ("vroom8.png"),
+            new File ("lightvroom4.png"),
+            new File ("lightvroom2.png"),
+            new File ("carvroom1.png"),
+            new File ("carvroom2.png")
+>>>>>>> Joshua
             
 =======
             new File("blur.png")
@@ -128,6 +145,7 @@ class Process {
                         }
                     }
                 }
+                out[j % images.length] = newrgbs;
                 System.out.println();
                 long end_time = System.nanoTime();
                 double difference = (end_time - start_time) / 1e6;
@@ -189,10 +207,18 @@ class Process {
         for(int i = 0; i < width; i++){
             int currColor = 0;
             int currTop = -1;
+            int numColor = 0;
             for(int j = 0; j < height; j++){
                 if((codeArray[j*width + i] == 10 || codeArray[j*width + i] == 11) && currTop == -1){
-                    currTop = j;
+                     currTop = j;
                 }else if((codeArray[j*width + i] == currColor || codeArray[j*width + i] == currColor + 1 || codeArray[j*width + i] == currColor -1) && currTop != -1){
+                    if(codeArray[j*width + i] != currColor){
+                        numColor ++;
+                        if(numColor > 20){
+                            currTop = 0;
+                            numColor = 0;
+                        }
+                    }
                     if(codeArray[j*width + i] == 6){
                         wallTops[i] = currTop;
                         wallBottoms[i] = j;
@@ -202,6 +228,10 @@ class Process {
                     currTop = -1;
                 }
                 currColor = codeArray[j*width + i]; 
+                if(j == height -1){
+                    wallTops[i] = -1;
+                    wallBottoms[i] = -1;
+                }
             }
 =======
         Scanner sc = new Scanner(System.in);
@@ -234,8 +264,44 @@ class Process {
             wallTops[x] = ctop;
 >>>>>>> 446d1dbe980825aab72cee34045266afe255fb62
         }
-        int[][] out = {wallBottoms, wallTops};
+        int[] newWallTops = new int[width];
+        int[] newWallBottoms = new int[width];
+        removeOutliers(wallTops, wallBottoms, newWallTops, newWallBottoms);
+        int[][] out = {newWallBottoms, newWallTops};
         return out;
+    }
+
+    static void removeOutliers(int[] inArrayTop, int[] inArrayBottom, int[] outArrayTop, int[] outArrayBottom){
+        double mean = 0;
+        int numCount = 0;
+        for(int i = 0; i < inArrayTop.length; i++){
+            if(inArrayBottom[i] - inArrayTop[i] > 0){
+                mean += inArrayBottom[i] - inArrayTop[i];
+                numCount++;
+            }
+        }
+        mean /= numCount;
+        int[] variance = new int[inArrayTop.length];
+        double stddev = 0;
+        for(int i = 0; i < inArrayTop.length; i++){
+            if(inArrayBottom[i] - inArrayTop[i] > 0){
+                variance[i] = (inArrayBottom[i] - inArrayTop[i] - (int)mean) * (inArrayBottom[i] - inArrayTop[i] - (int)mean);
+            }else{
+                variance[i] = 0;
+            }
+            stddev += variance[i];
+        }
+        stddev /= numCount;
+        stddev = Math.sqrt(stddev);
+        for(int i = 0; i < inArrayTop.length; i++){
+            if(inArrayBottom[i] - inArrayTop[i] > mean + stddev || inArrayBottom[i] - inArrayTop[i] < mean - stddev){
+                outArrayTop[i] = -1;
+                outArrayBottom[i] = -1;
+            }else{
+                outArrayTop[i] = inArrayTop[i];
+                outArrayBottom[i] = inArrayBottom[i]; 
+            }
+        }
     }
 
 
@@ -262,6 +328,57 @@ class Process {
             out += imageArray[height + i] + "\n";
         }
         return out;
+    }
+
+    static int posterizePixelHSL(int rgb, int dt) {
+        int red = (rgb >> 16) & 0xFF;
+        int green = (rgb >> 8) & 0xFF;
+        int blue = (rgb) & 0xFF;
+        int max = red > blue ? red > green ? red : green : blue > green ? blue : green;
+        int min = red < blue ? red < green ? red : green : blue < green ? blue : green;
+        int delta = max - min;
+        int h = 0;
+        if(delta == 0){
+            h = 0;
+        }else if(max == red){
+            h = ((green-blue)/delta) % 6;
+        }else if(max == green){
+            h = (blue - red)/delta + 2;
+        }else{
+            h = (red - green)/delta + 4;
+        }
+        h *= 60;
+        int l = (max + min) >> 1;
+        if(delta > dt){
+            if(h > 330 || h < 30){
+                return 0;
+            }else if(h > 30 && h < 90){
+                return 5;
+            }else if( h > 90 && h < 150){
+                return 1;
+            }else if(h > 150 && h < 210){
+                return 3;
+            }else if(h > 210 && h < 270){
+                return 2;
+            }else if(h > 270 && h < 330){
+                return 4;
+            }
+        }else{
+            if(l < 43){
+                return 7;
+            }else if(l > 43 && l < 86){
+                return  7;
+            }else if(l > 86 && l < 129){
+                return 8;
+            }else if(l > 129 && l < 152){
+                return 9;
+            }else if(l > 152 && l < 195){
+                return 10;
+            }else{
+                return 11;
+            }
+        }
+        return 6;
     }
 }
 
