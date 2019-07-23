@@ -1,11 +1,8 @@
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
-import java.util.Scanner;
 
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.PrintStream;
 import java.io.IOException;
 
 class Process {
@@ -30,59 +27,12 @@ class Process {
         {10,11,10,9,10,9,8,6},
         {10,11,10,9,8,9,8,9,10,9,8,6},
         {10,9,10,9,8,6},
-        {10,9,10,9,8,6},
-        {10,11,10,9,10,11,10,9,8,6},
-        {10,11,10,9,10,11,10,9,8,6},
-        {10,11,10,9,8,9,8,9,10,11,10,9,8,6},
-        {10,9,10,11,10,9,8,6},
-        {10,9,10,11,10,9,8,6},
-        {10,11,10,9,8,9,8,6},
-        {10,11,10,9,8,9,10,9,8,6},
-        {10,11,10,9,10,9,8,6},
-        {10,11,10,9,10,9,8,6},
-        {10,11,10,9,8,9,8,9,10,9,8,6},
-        {10,9,10,9,8,6},
-        {10,9,10,9,8,6},
-        {10,11,10,9,10,11,10,11,10,9,8,6},
-        {10,11,10,9,10,11,10,11,10,9,8,6},
-        {10,11,10,9,8,9,8,9,10,11,10,11,10,9,8,6},
-        {10,9,10,11,10,11,10,9,8,6},
-        {10,9,10,11,10,11,10,9,8,6},
-        {10,11,10,9,8,9,8,6},
-        {10,11,10,9,8,9,10,11,10,9,8,6},
-        {10,11,10,9,10,9,8,6},
-        {10,11,10,9,10,9,8,6},
-        {10,11,10,9,8,9,8,9,10,9,8,6},
-        {10,9,10,9,10,9,8,6},
-        {10,9,10,9,10,9,8,6},
-        {10,11,10,9,10,11,10,9,10,9,8,6},
-        {10,11,10,9,10,11,10,9,10,9,8,6},
-        {10,11,10,9,8,9,8,9,10,11,10,9,10,9,8,6},
-        {10,9,10,11,10,9,10,9,8,6},
-        {10,9,10,11,10,9,10,9,8,6},
-        {10,11,10,9,8,9,10,9,8,6},
-        {10,11,10,9,8,9,10,9,10,9,8,6},
-        {11,10,9,10,9,8,7},
-        {10,11,10,9,10,9,8,7}
+        {10,9,10,9,8,6}
     };
-
-    static final ColorSequenceTree WallSeqs = new ColorSequenceTree(WallColorSeqs);
 
     public static void main(String[] args) {
         File[] images = {
-<<<<<<< HEAD
-            new File("vroom1.png"),
-            new File("vroom2.png"),
-            new File("vroom3.png"),
-            new File("vroom4.png"),
-            new File("vroom5.png"),
-            new File("vroom6.png"),
-            new File("vroom7.png"),
-            new File("vroom8.png")
-            
-=======
-            new File("blur.png")
->>>>>>> 446d1dbe980825aab72cee34045266afe255fb62
+            new File("vroom1.png")
         };
         try {
             int[][] in = new int[images.length][];
@@ -102,33 +52,19 @@ class Process {
                 outFiles[i] = new File("out"+i+".png");
                 i++;
             }
-<<<<<<< HEAD
-            for(int j = 0; j < images.length; j ++) {
-=======
             for(int j = 0; j < 1; j ++) {
->>>>>>> 446d1dbe980825aab72cee34045266afe255fb62
                 rgbs = in[j % images.length];
                 newrgbs = out[j % images.length];
                 long start_time = System.nanoTime();
                 posterizeImageInt(rgbs, newrgbs, 65);
                 int[][] tb = scanImage(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight(), WallColorSeqs);
-                // String csv = imageToCSV(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight());
-                // try (PrintStream outCSV = new PrintStream(new FileOutputStream("image" + j  + ".csv"))) {
-                //     outCSV.print(csv);
-                // }
                 codeToRGB(newrgbs, newrgbs);
-                for(int k = 0; k < tb[0].length; k++) {
-                    if(tb[0][k] > 0 && tb[1][k] > 0) {
-                        for(int m = tb[1][k]; m < tb[0][k]; m ++) {
-<<<<<<< HEAD
-                            newrgbs[k + tb[0].length * m] = ColorArr[4];
-=======
-                            newrgbs[k + tb[0].length * m] = ColorArr[0];
->>>>>>> 446d1dbe980825aab72cee34045266afe255fb62
-                        }
+                for(int[] arr : tb) {
+                    for(int k = 0; k < arr.length; k++) {
+                        if(arr[k] > 0) newrgbs[arr[k] * outImages[j % images.length].getWidth() + k] = ColorArr[0];
                     }
+                    System.out.println();
                 }
-                System.out.println();
                 long end_time = System.nanoTime();
                 double difference = (end_time - start_time) / 1e6;
                 System.out.println(difference);
@@ -168,7 +104,7 @@ class Process {
             if(avg < 25) {
                 return 6;
             } else if(avg < 76) {
-                return 7;
+                return 6;
             } else if(avg < 127) {
                 return 8;
             } else if(avg < 178) {
@@ -185,26 +121,6 @@ class Process {
     static int[][] scanImage(int[] codeArray, int width, int height, int[][] wallColors) {
         int[] wallBottoms = new int[width];
         int[] wallTops = new int[width];
-<<<<<<< HEAD
-        for(int i = 0; i < width; i++){
-            int currColor = 0;
-            int currTop = -1;
-            for(int j = 0; j < height; j++){
-                if((codeArray[j*width + i] == 10 || codeArray[j*width + i] == 11) && currTop == -1){
-                    currTop = j;
-                }else if((codeArray[j*width + i] == currColor || codeArray[j*width + i] == currColor + 1 || codeArray[j*width + i] == currColor -1) && currTop != -1){
-                    if(codeArray[j*width + i] == 6){
-                        wallTops[i] = currTop;
-                        wallBottoms[i] = j;
-                        break;
-                    }
-                }else{
-                    currTop = -1;
-                }
-                currColor = codeArray[j*width + i]; 
-            }
-=======
-        Scanner sc = new Scanner(System.in);
         ColorSequenceTree colTree = new ColorSequenceTree(wallColors);
         //System.out.println(colTree);
         for(int x = 0; x < width; x ++) {
@@ -213,7 +129,7 @@ class Process {
             colTree.reset();
             for(int yd = 0; yd < height; yd ++) {
                 int cpos = x + yd * width;
-                System.out.println("checking: " + yd + ", current top is: " + ctop + ", current color is:" + codeArray[cpos]);
+                System.out.println("checking: " + yd + ", current bottom is: " + cbottom + ", current color is:" + codeArray[cpos]);
                 if(colTree.hasNext(codeArray[cpos])) {
                     colTree.progress(codeArray[cpos]);
                     if(ctop == -1) {
@@ -229,10 +145,8 @@ class Process {
                     }
                 }
             }
-            // String useless = sc.nextLine();
             wallBottoms[x] = cbottom;
             wallTops[x] = ctop;
->>>>>>> 446d1dbe980825aab72cee34045266afe255fb62
         }
         int[][] out = {wallBottoms, wallTops};
         return out;
@@ -252,17 +166,6 @@ class Process {
             outArray[i] = ColorArr[codeArray[i]];
         }
     }
-
-    static String imageToCSV(int[] imageArray, int width, int height) {
-        String out = "";
-        for(int i = 0; i < width; i ++) {
-            for(int j = 0; j < height - 1; j ++) {
-                out += imageArray[j*width+i] + ",";
-            }
-            out += imageArray[height + i] + "\n";
-        }
-        return out;
-    }
 }
 
 class ColorSequenceTree {
@@ -280,9 +183,9 @@ class ColorSequenceTree {
         int depth = 0;
         ColorSequenceTreeNode curNode;
         for(int[] colorSequence : colorSequenceTable) {
-            // System.out.println(depth++);
+            System.out.println(depth++);
             curNode = rootNode;
-            // System.out.println(curNode.isFinal);
+            System.out.println(curNode.isFinal);
             for(int code : colorSequence) {
                 if(curNode.hasChild(code)) {
                     curNode = curNode.getBranch(code);
@@ -340,10 +243,10 @@ class ColorSequenceTree {
         return currentNode.isFinal;
     }
 
-    // @Override
-    // public String toString() {
-    //     return rootNode.toString();
-    // }
+    @Override
+    public String toString() {
+        return rootNode.toString();
+    }
 
 }
 
@@ -396,20 +299,20 @@ class ColorSequenceTreeNode {
         branches[code] = this;
     }
 
-    // @Override
-    // public String toString() {
-    //     String out = "(\n";
-    //     int i = 0;
-    //     for(ColorSequenceTreeNode node : branches) {
-    //         if(node == null) {
-    //             out += "/\n";
-    //         } else {
-    //             out += i + "|" + node.toString() + "\n";
-    //         }
-    //         i ++;
-    //     }
-    //     out += ")";
-    //     return out;
-    // }
+    @Override
+    public String toString() {
+        String out = "(\n";
+        int i = 0;
+        for(ColorSequenceTreeNode node : branches) {
+            if(node == null) {
+                out += "/\n";
+            } else {
+                out += i + "|" + node.toString() + "\n";
+            }
+            i ++;
+        }
+        out += ")";
+        return out;
+    }
 
 }
