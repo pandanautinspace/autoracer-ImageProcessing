@@ -70,9 +70,9 @@ class Process {
 
     public static void main(String[] args) {
         File[] images = {
-            new File ("wow.jpg"),
-            new File ("blur.png"),
-            new File ("vroom1.png"),
+            /* new File("blur.png"),
+            new File("wow.jpg"), */
+            new File ("vroom1.png")/* ,
             new File ("vroom2.png"),
             new File ("vroom3.png"),
             new File ("vroom4.png"),
@@ -83,7 +83,7 @@ class Process {
             new File ("lightvroom4.png"),
             new File ("lightvroom2.png"),
             new File ("carvroom1.png"),
-            new File ("carvroom2.png")
+            new File ("carvroom2.png") */
         };
         try {
             int[][] in = new int[images.length][];
@@ -100,29 +100,39 @@ class Process {
                 image.getRGB(0,0,image.getWidth(),image.getHeight(), in[i], 0, image.getWidth());
                 out[i] = in[i].clone();
                 outImages[i] = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
-                outFiles[i] = new File("out"+i+".png");
+                outFiles[i] = new File("out"+i+1+".png");
                 i++;
             }
             for(int j = 0; j < images.length; j ++) {
                 rgbs = in[j % images.length];
                 newrgbs = out[j % images.length];
                 long start_time = System.nanoTime();
-                posterizeImageInt(rgbs, newrgbs, 65);
+                // blurrifyImage(rgbs, newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight());
+                averageByRadius(rgbs, newrgbs, 5);
+                posterizeImageInt(newrgbs, newrgbs, 65);
                 int[][] tb = scanImage(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight(), WallColorSeqs);
-                // String csv = imageToCSV(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight());
-                // try (PrintStream outCSV = new PrintStream(new FileOutputStream("image" + j  + ".csv"))) {
-                //     outCSV.print(csv);
-                // }
+                // removeOutliers(tb[0], tb[1], tb[0], tb[1]);
+                // // // String csv = imageToCSV(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight());
+                // // // try (PrintStream outCSV = new PrintStream(new FileOutputStream("image" + j  + ".csv"))) {
+                // // //     outCSV.print(csv);
+                // // // }
+                // interpolate(tb[0], outImages[j % images.length].getHeight());
+                // interpolate(tb[1], outImages[j % images.length].getHeight());
+                // // // for(int t: tb[0]) {
+                // // //     System.out.println(t);
+                // // // }
                 codeToRGB(newrgbs, newrgbs);
                 for(int k = 0; k < tb[0].length; k++) {
                     if(tb[0][k] > 0 && tb[1][k] > 0) {
+                        // System.out.println("Bottom at " + tb[1][k] + " and top at " + tb[0][k]);
                         for(int m = tb[1][k]; m < tb[0][k]; m ++) {
+                            // System.out.println("Accessing Index: " + (k + tb[0].length * m));
                             newrgbs[k + tb[0].length * m] = ColorArr[4];
                         }
                     }
                 }
                 out[j % images.length] = newrgbs;
-                System.out.println();
+                // System.out.println();
                 long end_time = System.nanoTime();
                 double difference = (end_time - start_time) / 1e6;
                 System.out.println(difference);
@@ -134,6 +144,197 @@ class Process {
         } catch (IOException e) {
             System.out.println("Java Sux Because " + e);
         }
+    }
+
+    static int posterizePixelV2(int r, int g, int b, int divides) {
+        int inc = 256 / divides;
+        int rn = 0, gn = 0, bn = 0;
+        for(int i = 0; i < 256; i += inc) {
+            if(r > i && r < i + inc) {
+                rn = i;
+            }
+            if(g > i && g < i + inc) {
+                gn = i;
+            }
+            if(b > i && b < i + inc) {
+                bn = i;
+            }
+        }
+        return (rn << 16) | (gn << 8) | bn;
+
+    }
+
+    static void posterizeImageV2(int[] rgbarray, int[] outArray, int div) {
+        for(int i = 0; i < rgbarray.length; i ++) {
+            int c = rgbarray[i];
+            outArray[i] =  posterizePixelV2(c >> 16 & 0xFF, c >> 8 & 0xFF, c & 0xFF, div);
+        }
+    }
+
+    static int splitAndCombine(int... rgbs) {
+        int racc = 0, gacc = 0, bacc = 0;
+        for(int rgb: rgbs) {
+            racc += (rgb >> 16) & 0xFF;
+            gacc += (rgb >> 8) & 0xFF;
+            bacc += rgb & 0xFF;
+        }
+        racc /= rgbs.length;
+        gacc /= rgbs.length;
+        bacc /= rgbs.length;
+        return racc << 16 | gacc << 8 | bacc;
+    }
+
+    static void averageBy2(int[] inArray, int[] outArray){
+        for(int i = 0; i < inArray.length - 1; i ++) {
+            outArray[i] = splitAndCombine(inArray[i], inArray[i + 1]);
+        }
+        outArray[inArray.length - 1] = inArray[inArray.length - 1];
+    }
+
+    static void averageByRadius(int[] inArray, int[] outArray, int radius) {
+        int[] combinees = new int[radius];
+        for(int i = 0; i < inArray.length; i ++) {
+            for(int j = 0; j < radius; j ++ ) {
+                try {
+                    combinees[j] = inArray[i+j];
+                } catch(ArrayIndexOutOfBoundsException e) {
+                    combinees[j] = inArray[inArray.length - 1];
+                }
+            }
+            outArray[i] = splitAndCombine(combinees);
+        }
+    }
+
+    
+
+    static void blurrifyImage(int[] inArray, int[] outArray, int width, int height) {
+        int u = inArray[0];
+        int d = inArray[width];
+        int l = inArray[0];
+        int r = inArray[1];
+        outArray[0] = splitAndCombine(u, d, l, r);
+        for(int i = 1; i < inArray.length - 2; i ++) {
+            outArray[i] = splitAndCombine(u, d, l, r);
+            if(i == width - 1 || i == height * (width - 1) + 1) {
+                i ++;
+            }
+            switch(i + 1 % width) {
+                case 1:
+                    r = inArray[i + 1];
+                    l = inArray[i];
+                    d = inArray[width + i];
+                    u = inArray[i - width];
+                    break;
+                case 0:
+                    r = inArray[i];
+                    l = inArray[i - 1];
+                    d = inArray[width + i];
+                    u = inArray[i - width];
+                    break;
+                default:
+                    try {
+                        if(i < width || i > (height - 1) * width) {
+                            r = inArray[i - 1];
+                            l = inArray[i + 1];
+                            u = r;
+                            d = l;
+                        } else {
+                            r = inArray[i + 1];
+                            l = inArray[i - 1];
+                            d = inArray[width + i];
+                            u = inArray[-width + i];
+                        }
+                    } catch (ArrayIndexOutOfBoundsException e) {
+                        System.out.println(i + 1 % width);
+                        System.out.println(e);
+                    }
+            }
+            
+        }
+        
+    }
+
+    static void removeOutliers2(int[] inArrayTop, int[] inArrayBottom, int[] outArrayTop, int[] outArrayBottom){
+        double topMean = 0, bottomMean = 0;
+        int topCount = 0, bottomCount = 0;
+        for(int i = 0; i < inArrayTop.length; i++){
+            if(inArrayTop[i] != 0){
+                topMean += inArrayTop[i];
+                topCount++;
+            }
+            if(inArrayBottom[i] != 0){
+                bottomMean += inArrayBottom[i];
+                bottomCount++;
+            }
+        }
+        topMean /= topCount;
+        bottomMean /= bottomCount;
+        int[] topVariance = new int[inArrayTop.length];
+        int[] bottomVariance = new int[inArrayTop.length];
+        double topStddev = 0, bottomStddev = 0;
+        for(int i = 0; i < inArrayTop.length; i++){
+            if(inArrayTop[i] != 0){
+                topVariance[i] = (inArrayTop[i] - (int)topMean) * (inArrayTop[i] - (int)topMean);
+            }else{
+                topVariance[i] = 0;
+            }
+            topStddev += topVariance[i];
+            if(inArrayBottom[i] != 0){
+                bottomVariance[i] = (inArrayBottom[i] - (int)bottomMean) * (inArrayBottom[i] - (int)bottomMean);
+            }else{
+                bottomVariance[i] = 0;
+            }
+            bottomStddev += bottomVariance[i];
+
+        }
+        topStddev /= topCount;
+        topStddev = Math.sqrt(topStddev);
+        bottomStddev /= bottomCount;
+        bottomStddev = Math.sqrt(bottomStddev);
+        for(int i = 0; i < inArrayTop.length; i++){
+            if(inArrayTop[i] > topMean + topStddev || inArrayTop[i] < topMean - topStddev || inArrayBottom[i] > bottomMean + bottomStddev || inArrayBottom[i] < bottomMean - bottomStddev){
+                outArrayTop[i] = 0;
+                outArrayBottom[i] = 0;
+            }else{
+                outArrayTop[i] = inArrayTop[i];
+                outArrayBottom[i] = inArrayBottom[i]; 
+            }
+        }
+    } 
+
+    static void interpolate(int[] inArray, int height) {
+        int x1 = -1, y1 = -1, x2 = -1, y2 = -1;
+        float m = 481;
+        for(int i = 0; i < inArray.length; i ++) {
+            if(inArray[i] > 0) {
+                if(x1 < 0) {
+                    x1 = i;
+                    y1 = inArray[i];
+                } else if(x2 < 0) {
+                    x2 = i;
+                    y2 = inArray[i];
+                    m = (float)(y2 - y1) / (float)(x2 - x1);
+                } else {
+                    if(m < 481) m = (float)0.5 * (((float)(y2 - y1) / (float)(x2 - x1)) + m);
+                    else m = (float)(y2 - y1) / (float)(x2 - x1);
+                    x1 = x2;
+                    y1 = y2;
+                    x2 = i;
+                    y2 = inArray[i];
+                }
+            } else {
+                if(m < 481) inArray[i] = (int)(m * (i - x2) + y2);
+                inArray[i] = inArray[i] > height ? height : (inArray[i] < 0 ? 0 : inArray[i]);
+            }
+        }
+    }
+
+    static int[] RGBArrayFromImage(BufferedImage image) {
+        int height = image.getHeight();
+        int width = image.getWidth();
+        int[] out = new int[width*height];
+        image.getRGB(0,0,image.getWidth(),image.getHeight(), out, 0, image.getWidth());
+        return out;
     }
 
 
@@ -151,11 +352,11 @@ class Process {
             return 1;
         } else if (rb < -dt && bg > dt) {
             return 2;
-        } else if (rg < dt && rg > -dt && rb > dt && bg < -dt) {
+        } else if (rg < dt * 2 && rg > -dt * 2 && rb > dt * 2 && bg < -dt) {
             return 5;
-        } else if (rb < dt && rb > -dt && rg > dt && bg > dt) {
+        } else if (rb < dt * 2 && rb > -dt * 2 && rg > dt * 2 && bg > dt) {
             return 4;
-        } else if (bg < dt && bg > -dt && rg < -dt && rb < -dt ) {
+        } else if (bg < dt * 2 && bg > -dt * 2 && rg < -dt * 2 && rb < -dt ) {
             return 3;
         } else {
             int avg = (red + green + blue + green) >> 2;
@@ -207,12 +408,60 @@ class Process {
         }
         int[] newWallTops = new int[width];
         int[] newWallBottoms = new int[width];
-        removeOutliers(wallTops, wallBottoms, newWallTops, newWallBottoms);
         
-        
-        int[][] out = {newWallBottoms, newWallTops};
+        removeOutliersPredictive(wallTops, 40, 1, height);
+        removeOutliersPredictive(wallBottoms, 40, 1, height);
+        // removeOutliers2(wallTops, wallBottoms, newWallTops, newWallBottoms);
+        // System.out.println("Wall Tops");
+        // for(int top : wallTops) {
+        //     System.out.println(top);
+        // }
+        // System.out.println("Wall Bots");
+        // for(int bot : wallBottoms) {
+            // System.out.println(bot);
+        // }
+        // interpolate(newWallBottoms, height);
+        // interpolate(newWallTops, height);
+        int[][] out = {wallBottoms, wallTops};
         fillEmptySpaces(out);
         return out;
+    }
+
+    static void removeOutliersPredictive(int[] inArray, int diffThreshold, int exceptions, int height) {
+        int x1 = -1, y1 = -1, x2 = -1, y2 = -1;
+        float m = 481;
+        int prediction = -1;
+        int es = 0;
+        for(int i = 0; i < inArray.length; i ++) {
+            if(inArray[i] > 0) {
+                if(m < 481) prediction = (int)(m * (i - x2) + y2);
+                prediction = prediction > height ? height : prediction < 0 ? 0 : prediction;
+                if(prediction != -1) {
+                    // System.out.println("Prediction was "+ prediction +", but actual was" + inArray[i]);
+                    if((prediction - inArray[i] > diffThreshold || inArray[i] - prediction < -diffThreshold) && es++ >= exceptions)  {
+                            // System.out.println("Thats a bad...");
+                            inArray[i] = -1;
+                            continue;
+                    }
+                    // System.out.println("At position " + i + ", " + es + " exceptions.");
+                }
+                if(x1 < 0) {
+                    x1 = i;
+                    y1 = inArray[i];
+                } else if(x2 < 0) {
+                    x2 = i;
+                    y2 = inArray[i];
+                    m = (float)(y2 - y1) / (float)(x2 - x1);
+                } else {
+                    if(m < 481) m = (float)0.5 * (((float)(y2 - y1) / (float)(x2 - x1)) + m);
+                    else m = (float)(y2 - y1) / (float)(x2 - x1);
+                    x1 = x2;
+                    y1 = y2;
+                    x2 = i;
+                    y2 = inArray[i];
+                }
+            }
+        }
     }
 
     /*
@@ -292,12 +541,12 @@ class Process {
     static void fillEmptySpaces(int[][] arr){
         int x1 = 0; int x2 = 0; int y1 = 0; int y2 = 0;
         for(int i = 1; i < arr[0].length - 2; i++){
-            if(arr[0][i] == 0){
-                if(arr[0][i-1] != 0){
+            if(arr[0][i] <= 0){
+                if(arr[0][i-1] <= 0){
                     x1 = i-1;
                     y1 = arr[0][i-1];
                     int j = i + 1;
-                    while(arr[0][j] == 0 && j < arr[0].length - 1){
+                    while(arr[0][j] <= 0 && j < arr[0].length - 1){
                         j++;
                     }
                     x2 = j;
@@ -546,5 +795,20 @@ class ColorSequenceTreeNode {
     //     out += ")";
     //     return out;
     // }
+
+
+    /**
+     * @return ColorSequenceTreeNode[] return the branches
+     */
+    public ColorSequenceTreeNode[] getBranches() {
+        return branches;
+    }
+
+    /**
+     * @param branches the branches to set
+     */
+    public void setBranches(ColorSequenceTreeNode[] branches) {
+        this.branches = branches;
+    }
 
 }
