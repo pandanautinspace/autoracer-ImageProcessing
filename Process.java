@@ -70,7 +70,7 @@ class Process {
 
     public static void main(String[] args) {
         File[] images = {
-            new File ("wow.jpg"),
+            new File ("wow.jpg")/* ,
             new File ("blur.png"),
             new File ("vroom1.png"),
             new File ("vroom2.png"),
@@ -83,7 +83,8 @@ class Process {
             new File ("lightvroom4.png"),
             new File ("lightvroom2.png"),
             new File ("carvroom1.png"),
-            new File ("carvroom2.png")
+            new File ("carvroom2.png"),
+            new File("babyseaturtle.jpg") */
         };
         try {
             int[][] in = new int[images.length][];
@@ -107,22 +108,23 @@ class Process {
                 rgbs = in[j % images.length];
                 newrgbs = out[j % images.length];
                 long start_time = System.nanoTime();
-                posterizeImageInt(rgbs, newrgbs, 65);
-                int[][] tb = scanImage(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight(), WallColorSeqs);
+                blurAverage2(rgbs, newrgbs);
+                // posterizeImageInt(newrgbs, newrgbs, 65);
+                // int[][] tb = scanImage(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight(), WallColorSeqs);
                 // String csv = imageToCSV(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight());
                 // try (PrintStream outCSV = new PrintStream(new FileOutputStream("image" + j  + ".csv"))) {
                 //     outCSV.print(csv);
                 // }
-                codeToRGB(newrgbs, newrgbs);
-                for(int k = 0; k < tb[0].length; k++) {
-                    if(tb[0][k] > 0 && tb[1][k] > 0) {
-                        for(int m = tb[1][k]; m < tb[0][k]; m ++) {
-                            newrgbs[k + tb[0].length * m] = ColorArr[4];
-                        }
-                    }
-                }
+                // codeToRGB(newrgbs, newrgbs);
+                // for(int k = 0; k < tb[0].length; k++) {
+                //     if(tb[0][k] > 0 && tb[1][k] > 0) {
+                //         for(int m = tb[1][k]; m < tb[0][k]; m ++) {
+                //             newrgbs[k + tb[0].length * m] = ColorArr[4];
+                //         }
+                //     }
+                // }
                 out[j % images.length] = newrgbs;
-                System.out.println();
+                // System.out.println();
                 long end_time = System.nanoTime();
                 double difference = (end_time - start_time) / 1e6;
                 System.out.println(difference);
@@ -136,6 +138,78 @@ class Process {
         }
     }
 
+    static void averageByRadius(int[] inArray, int[] outArray, int radius) {
+        int[] combinees = new int[radius];
+        for(int i = 0; i < inArray.length; i ++) {
+            for(int j = 0; j < radius; j ++ ) {
+                try {
+                    combinees[j] = inArray[i+j];
+                } catch(ArrayIndexOutOfBoundsException e) {
+                    combinees[j] = inArray[inArray.length - 1];
+                }
+            }
+            outArray[i] = splitAndCombine(combinees);
+        }
+    }
+    
+    static void blurAverage2(int[] inArray, int[] outArray) {
+        int sumr = (inArray[0] >> 16 & 0xFF) << 3;
+        int sumg = (inArray[0] >> 8 & 0xFF) << 3;
+        int sumb = (inArray[0] & 0xFF) << 3;
+        for(int i = 0; i < inArray.length; i ++) {
+            if(i + 4 < inArray.length) {
+                sumr += 0xFF & inArray[i + 4] >> 16;
+                sumg += 0xFF & inArray[i + 4] >> 8;
+                sumb += 0xFF & inArray[i + 4];
+            } else {
+                sumr += 0xFF & inArray[inArray.length - 1] >> 16;
+                sumg += 0xFF & inArray[inArray.length - 1] >> 8;
+                sumb += 0xFF & inArray[inArray.length - 1];
+            }
+            if(i - 4 >= 0) {
+                sumr -= 0xFF & inArray[i - 4] >> 16;
+                sumg -= 0xFF & inArray[i - 4] >> 8;
+                sumb -= 0xFF & inArray[i - 4]; 
+            } else {
+                sumr -= 0xFF & inArray[0] >> 16;
+                sumg -= 0xFF & inArray[0] >> 8;
+                sumb -= 0xFF & inArray[0]; 
+            }
+            int finr = sumr >> 3;
+            int fing = sumg >> 3;
+            int finb = sumb >> 3;
+            if(fing < 0) {
+                 System.out.println((i % 1920) + "," + (i / 1920)); 
+                 System.out.println("Ahead Channels: RED " + (0xFF & inArray[i + 4] >> 16) +", GREEN " + (0xFF & inArray[i + 4] >> 8) +", BLUE " + (0xFF & inArray[i + 4]));
+                 System.out.println("Behind Channels: RED " + (0xFF & inArray[i - 4] >> 16) +", GREEN " + (0xFF & inArray[i - 4] >> 8) +", BLUE " + (0xFF & inArray[i - 4]));
+                 System.out.println("Behind Channels: RED " + (0xFF & inArray[i - 5] >> 16) +", GREEN " + (0xFF & inArray[i - 5] >> 8) +", BLUE " + (0xFF & inArray[i - 5]));
+                 System.out.println("Behind Channels: RED " + (0xFF & inArray[i - 6] >> 16) +", GREEN " + (0xFF & inArray[i - 6] >> 8) +", BLUE " + (0xFF & inArray[i - 6]));
+                 System.out.println("Behind Channels: RED " + (0xFF & inArray[i - 7] >> 16) +", GREEN " + (0xFF & inArray[i - 7] >> 8) +", BLUE " + (0xFF & inArray[i - 7]));
+                }
+            outArray[i] = fing << 16 | fing << 8 | fing;
+        }
+    }
+
+    static int splitAndCombine(int... rgbs) {
+        int racc = 0, gacc = 0, bacc = 0;
+        for(int rgb: rgbs) {
+            racc += (rgb >> 16) & 0xFF;
+            gacc += (rgb >> 8) & 0xFF;
+            bacc += rgb & 0xFF;
+        }
+        racc /= rgbs.length;
+        gacc /= rgbs.length;
+        bacc /= rgbs.length;
+        return racc << 16 | gacc << 8 | bacc;
+    }
+
+
+    static int p(int rgb, int n) {
+        int r = (256 / n) * (((rgb >> 16) & 0xFF) / (256 / n));
+        int g = (256 / n) * (((rgb >> 8) & 0xFF) / (256 / n));
+        int b = (256 / n) * (((rgb) & 0xFF) / (256 / n));
+        return r << 16 | g << 8 | b;
+    }
 
 
     static int posterizePixelInt(int rgb, int dt) {
@@ -194,7 +268,7 @@ class Process {
                             numColor = 0;
                         }
                     }
-                    if(codeArray[j*width + i] == 6){
+                    if(codeArray[j*width + i] == 7){
                         wallTops[i] = currTop;
                         wallBottoms[i] = j;
                         break;
@@ -346,6 +420,21 @@ class Process {
             out += imageArray[height + i] + "\n";
         }
         return out;
+    }
+
+    static String heightsToCSV(int[][] heightsArray) {
+        String out = "";
+        for(int i = 0; i < heightsArray[0].length; i ++) {
+            out += i + ", " + heightsArray[0][i] + ", " + heightsArray[1][i] + "\n";
+        }
+        return out;
+    }
+
+    static void writeCSV(String toWrite, String fileName) {
+        File outFile = new File(fileName);
+        try (PrintStream outCSV = new PrintStream(new FileOutputStream("image" + j  + ".csv"))) {
+            outCSV.print(toWrite);
+        }
     }
 
     static int posterizePixelHSL(int rgb, int dt) {
