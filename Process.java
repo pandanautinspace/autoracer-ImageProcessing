@@ -4,6 +4,7 @@ import java.util.Scanner;
 
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.io.IOException;
@@ -70,7 +71,7 @@ class Process {
 
     public static void main(String[] args) {
         File[] images = {
-            new File ("wow.jpg")/* ,
+            new File ("wow.jpg"),
             new File ("blur.png"),
             new File ("vroom1.png"),
             new File ("vroom2.png"),
@@ -84,7 +85,7 @@ class Process {
             new File ("lightvroom2.png"),
             new File ("carvroom1.png"),
             new File ("carvroom2.png"),
-            new File("babyseaturtle.jpg") */
+            new File("babyseaturtle.jpg")
         };
         try {
             int[][] in = new int[images.length][];
@@ -108,7 +109,9 @@ class Process {
                 rgbs = in[j % images.length];
                 newrgbs = out[j % images.length];
                 long start_time = System.nanoTime();
-                blurAverage2(rgbs, newrgbs);
+                averageByRadius(rgbs, newrgbs, 6);
+                newrgbs = intensityImage(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight());
+                newrgbs = robertsCrossEdgeDetection(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight());
                 // posterizeImageInt(newrgbs, newrgbs, 65);
                 // int[][] tb = scanImage(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight(), WallColorSeqs);
                 // String csv = imageToCSV(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight());
@@ -422,6 +425,74 @@ class Process {
         return out;
     }
 
+    static int intensityFromRGB(int rgb) {
+        return (((rgb >> 16) & 0xFF) + ((rgb >> 8) & 0xFF) + (rgb & 0xFF))/3;
+    }
+
+    static int[] intensityImage(int[] imageArray, int width, int height) {
+        int[] out = new int[width * height];
+        for(int i = 0; i < width; i ++) {
+            for(int j = 0; j < height; j ++) {
+                out[j * width + i] = intensityFromRGB(imageArray[j * width + i]);
+            }
+        }
+        return out;
+    }
+
+    /* static int[] booleanEdgeDetection(int[] intensityArray, int width, int height, int constant) {
+        int[] out = new int[width * height];
+        for(int i = 1; i < width - 1; i ++) {
+            for(int j = 1; j < height - 1; j ++) {
+                int T_L = -constant;
+                int sum = 0;
+                for(int x = -1; x <= 1; x ++) {
+                    for(int y = -1; y <= 1; y ++) {
+                        int pos = (j + y) * width + i + x;
+                        sum += intensityArray[pos];
+                    }
+                }
+                T_L += sum / 9;
+
+            }
+        }
+        return out;
+    } */
+
+
+
+    static int[] robertsCrossEdgeDetection(int[] intensityArray, int width, int height) {
+        int[] out = new int[width * height];
+        for(int i = 1; i < width - 1; i ++) {
+            for(int j = 1; j < height - 1; j ++) {
+                out[j * width + i] = Math.abs(intensityArray[j * width + i] - intensityArray[(j+1) * width + (i+1)])
+                        + Math.abs(intensityArray[j * width + (i+1)] - intensityArray[(j+1) * width + i]);
+                // out[j * width + i] = out[j * width + i] > 0 ? 256 : 0;
+                out[j * width + i] |= out[j * width + i] << 16 | out[j * width + i] << 8;
+            }
+        }
+        return out;    
+    }
+
+    static int[] sobelEdgeDetection(int[] intensityArray, int width, int height) {
+        int[] out = new int[width * height];
+        for(int i = 1; i < width - 1; i ++) {
+            for(int j = 1; j < height - 1; j ++) {
+                int P1 = intensityArray[(j - 1) * width + i - 1];
+                int P2 = intensityArray[(j - 1) * width + i];
+                int P3 = intensityArray[(j - 1) * width + i + 1];
+                int P4 = intensityArray[j * width + i - 1];
+                int P6 = intensityArray[j * width + i + 1];
+                int P7 = intensityArray[(j + 1) * width + i - 1];
+                int P8 = intensityArray[(j + 1) * width + i];
+                int P9 = intensityArray[(j + 1) * width + i + 1];
+                out[j * width + i] = Math.abs((P1 + 2 * P2 + P3) - (P7 + 2 * P8 + P9))
+                                     + Math.abs((P3 + 2 * P6 + P9) - (P1 + 2 * P4 + P7));
+                out[j * width + i] |= out[j * width + i] << 16 | out[j * width + i] << 8;
+            }
+        }
+        return out;    
+    }
+
     static String heightsToCSV(int[][] heightsArray) {
         String out = "";
         for(int i = 0; i < heightsArray[0].length; i ++) {
@@ -431,9 +502,10 @@ class Process {
     }
 
     static void writeCSV(String toWrite, String fileName) {
-        File outFile = new File(fileName);
-        try (PrintStream outCSV = new PrintStream(new FileOutputStream("image" + j  + ".csv"))) {
+        try (PrintStream outCSV = new PrintStream(new FileOutputStream(fileName))) {
             outCSV.print(toWrite);
+        } catch(FileNotFoundException e) {
+
         }
     }
 
