@@ -4,6 +4,7 @@ import java.util.Scanner;
 
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.io.IOException;
@@ -66,8 +67,6 @@ class Process {
         {10,11,10,9,10,9,8,7}
     };
 
-    static final ColorSequenceTree WallSeqs = new ColorSequenceTree(WallColorSeqs);
-
     public static void main(String[] args) {
         File[] images = {
             new File ("wow.jpg"),
@@ -81,9 +80,7 @@ class Process {
             new File ("vroom7.png"),
             new File ("vroom8.png"),
             new File ("lightvroom4.png"),
-            new File ("lightvroom2.png"),
-            new File ("carvroom1.png"),
-            new File ("carvroom2.png")
+            new File ("lightvroom2.png")
         };
         try {
             int[][] in = new int[images.length][];
@@ -93,6 +90,7 @@ class Process {
             int i = 0;
             int[] rgbs;
             int[] newrgbs;
+            int[] newerrgbs;
             for(File imageFile : images) {
                 System.out.println("Processing " + imageFile.getName());
                 BufferedImage image = ImageIO.read(imageFile);
@@ -106,22 +104,29 @@ class Process {
             for(int j = 0; j < images.length; j ++) {
                 rgbs = in[j % images.length];
                 newrgbs = out[j % images.length];
+                newerrgbs = out[j % images.length];
                 long start_time = System.nanoTime();
-                posterizeImageInt(rgbs, newrgbs, 65);
-                int[][] tb = scanImage(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight(), WallColorSeqs);
+                rgbs = fastBoxBlur(rgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight());
+                newrgbs = convertToMono(rgbs);
+                posterizeImageInt(rgbs, newerrgbs, 65);
+                convertToRobertsCrossRaster(newrgbs, rgbs, outImages[j % images.length].getHeight(), outImages[j % images.length].getWidth());
+                int[][] tb = scanImage(newerrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight(), WallColorSeqs);
+                //writeCSV(heightsToCSV(tb),  j + ".csv");
                 // String csv = imageToCSV(newrgbs, outImages[j % images.length].getWidth(), outImages[j % images.length].getHeight());
                 // try (PrintStream outCSV = new PrintStream(new FileOutputStream("image" + j  + ".csv"))) {
                 //     outCSV.print(csv);
                 // }
-                codeToRGB(newrgbs, newrgbs);
-                for(int k = 0; k < tb[0].length; k++) {
-                    if(tb[0][k] > 0 && tb[1][k] > 0) {
-                        for(int m = tb[1][k]; m < tb[0][k]; m ++) {
-                            newrgbs[k + tb[0].length * m] = ColorArr[4];
-                        }
-                    }
-                }
-                out[j % images.length] = newrgbs;
+                //edgeRemoveOutlier(tb, newrgbs);
+                fillEmptySpaces(tb);
+                codeToRGB(newerrgbs, newerrgbs);
+                // for(int k = 0; k < tb[0].length; k++) {
+                //     if(tb[0][k] > 0 && tb[1][k] > 0) {
+                //         for(int m = tb[1][k]; m < tb[0][k]; m ++) {
+                //             newerrgbs[k + tb[0].length * m] = ColorArr[4];
+                //         }
+                //     }
+                // }
+                out[j % images.length] = newerrgbs;
                 System.out.println();
                 long end_time = System.nanoTime();
                 double difference = (end_time - start_time) / 1e6;
@@ -207,11 +212,12 @@ class Process {
         }
         int[] newWallTops = new int[width];
         int[] newWallBottoms = new int[width];
-        removeOutliers(wallTops, wallBottoms, newWallTops, newWallBottoms);
-        
-        
+        int[] wallTypes = new int[width];
+        for(int i = 0; i < width; i++){
+            wallTypes[i] = 1;
+        }
+        removeOutliers(wallTops, wallBottoms, newWallTops, newWallBottoms, wallTypes);
         int[][] out = {newWallBottoms, newWallTops};
-        fillEmptySpaces(out);
         return out;
     }
 
@@ -256,38 +262,58 @@ class Process {
     }
     */
 
-    static void removeOutliers(int[] inArrayTop, int[] inArrayBottom, int[] outArrayTop, int[] outArrayBottom){
-        double mean = 0;
-        int numCount = 0;
+    static void removeOutliers(int[] inArrayTop, int[] inArrayBottom, int[] outArrayTop, int[] outArrayBottom, int[]wallTypes){
+        int wallNum = 1;
+        double topMean[] = new double[wallNum + 1], bottomMean[] = new double[wallNum + 1];
+        int topCount[] = new int[wallNum + 1], bottomCount[] = new int [wallNum + 1];
+        //Calculate the mean for the top and bottom coordinates
         for(int i = 0; i < inArrayTop.length; i++){
-            if(inArrayBottom[i] - inArrayTop[i] > 0){
-                mean += inArrayBottom[i] - inArrayTop[i];
-                numCount++;
+            if(inArrayTop[i] != 0){
+                topMean[wallTypes[i]] += inArrayTop[i];
+                topCount[wallTypes[i]]++;
+            }
+            if(inArrayBottom[i] != 0){
+                bottomMean[wallTypes[i]] += inArrayBottom[i];
+                bottomCount[wallTypes[i]]++;
             }
         }
-        mean /= numCount;
-        int[] variance = new int[inArrayTop.length];
-        double stddev = 0;
+        topMean[1] /= topCount[1];
+        bottomMean[1] /= bottomCount[1];
+        //Calculate the standard deviation for top and bottom coordinates
+        int[][] topVariance = new int[wallNum + 1][inArrayTop.length];
+        int[][] bottomVariance = new int[wallNum + 1][inArrayTop.length];
+        double topStddev[] = new double[wallNum+1], bottomStddev[] = new double[wallNum+1];
         for(int i = 0; i < inArrayTop.length; i++){
-            if(inArrayBottom[i] - inArrayTop[i] > 0){
-                variance[i] = (inArrayBottom[i] - inArrayTop[i] - (int)mean) * (inArrayBottom[i] - inArrayTop[i] - (int)mean);
+            if(inArrayTop[i] != 0){
+                topVariance[wallTypes[i]][i] = (inArrayTop[i] - (int)topMean[wallTypes[i]]) * (inArrayTop[i] - (int)topMean[wallTypes[i]]);
             }else{
-                variance[i] = 0;
+                topVariance[wallTypes[i]][i] = 0;
             }
-            stddev += variance[i];
+            topStddev[wallTypes[i]] += topVariance[wallTypes[i]][i];
+            if(inArrayBottom[i] != 0){
+                bottomVariance[wallTypes[i]][i] = (inArrayBottom[i] - (int)bottomMean[wallTypes[i]]) * (inArrayBottom[i] - (int)bottomMean[wallTypes[i]]);
+            }else{
+                bottomVariance[wallTypes[i]][i] = 0;
+            }
+            bottomStddev[wallTypes[i]] += bottomVariance[wallTypes[i]][i];
+
         }
-        stddev /= numCount;
-        stddev = Math.sqrt(stddev);
+        topStddev[1] /= topCount[1];
+        topStddev[1] = Math.sqrt(topStddev[1]);
+        bottomStddev[1] /= bottomCount[1];
+        bottomStddev[1] = Math.sqrt(bottomStddev[1]);
+        //Finds outliers based on one standard deviation away from the mean
         for(int i = 0; i < inArrayTop.length; i++){
-            if(inArrayBottom[i] - inArrayTop[i] > mean + stddev || inArrayBottom[i] - inArrayTop[i] < mean - stddev){
-                outArrayTop[i] = -1;
-                outArrayBottom[i] = -1;
+            if(inArrayTop[i] > topMean[wallTypes[i]] + topStddev[wallTypes[i]] || inArrayTop[i] < topMean[wallTypes[i]] - topStddev[wallTypes[i]] || inArrayBottom[i] > bottomMean[wallTypes[i]] + bottomStddev[wallTypes[i]] || inArrayBottom[i] < bottomMean[wallTypes[i]] - bottomStddev[wallTypes[i]]){
+                outArrayTop[i] = 0;
+                outArrayBottom[i] = 0;
             }else{
                 outArrayTop[i] = inArrayTop[i];
-                outArrayBottom[i] = inArrayBottom[i]; 
+                outArrayBottom[i] = inArrayBottom[i];
             }
         }
     }
+
 
     static void fillEmptySpaces(int[][] arr){
         int x1 = 0; int x2 = 0; int y1 = 0; int y2 = 0;
@@ -305,26 +331,37 @@ class Process {
 
                     for(int k = x1; k < x2; k++){
                         arr[0][k] = ((y1-y2)/(x1-x2)) * (k - x1) + y1;
-                    }   
-                    
+                    }
+
                     y1 = arr[1][i-1];
                     y2 = arr[1][j];
 
                     for(int k = x1; k < x2; k++){
                         arr[1][k] = ((y1-y2)/(x1-x2)) * (k - x1) + y1;
-                    }   
+                    }
                     i = x2;
                     //drawPixel(a, x1, y1, width, 3);
-                    System.out.println("x1, y1 =" + x1 + " " + y1 + " x2, y2 =" + x2 + " " + y2);
+                   // System.out.println("x1, y1 =" + x1 + " " + y1 + " x2, y2 =" + x2 + " " + y2);
 
                 }
             }
         }
     }
 
+    public static void convertToRobertsCrossRaster(int[] input, int[] output, int nrows, int ncols) {
+		for (int r = 0; r < nrows - 1; r++) {
+			for(int c = 0; c < ncols - 1; c++) {
+				output[r * ncols + c] = Math.abs(input[r * ncols + c] - input[(r+1) * ncols + (c+1)])
+                        + Math.abs(input[r * ncols + (c+1)] - input[(r+1) * ncols + c]);
+                output[r * ncols + c] |= output[r * ncols + c] << 16 | output[r * ncols + c] << 8;
+
+			}
+		}
+	}
 
 
     static void posterizeImageInt(int[] rgbArray, int[] outArray, int diffThreshold) {
+        
         for(int i = rgbArray.length - 1; i >= 0; i --) {
             outArray[i] = posterizePixelInt(rgbArray[i], diffThreshold);
         }
@@ -398,153 +435,80 @@ class Process {
         }
         return 6;
     }
-}
 
-class ColorSequenceTree {
-    private ColorSequenceTreeNode rootNode;
-    private ColorSequenceTreeNode currentNode;
-
-    ColorSequenceTree() {
-        rootNode = new ColorSequenceTreeNode();
-        currentNode = rootNode;
-    }
-
-    ColorSequenceTree(int[][] colorSequenceTable) {
-        rootNode = new ColorSequenceTreeNode();
-        currentNode = rootNode;
-        int depth = 0;
-        ColorSequenceTreeNode curNode;
-        for(int[] colorSequence : colorSequenceTable) {
-            // System.out.println(depth++);
-            curNode = rootNode;
-            // System.out.println(curNode.isFinal);
-            for(int code : colorSequence) {
-                if(curNode.hasChild(code)) {
-                    curNode = curNode.getBranch(code);
-                } else {
-                    ColorSequenceTreeNode node = new ColorSequenceTreeNode();
-                    curNode.setBranch(code, node);
-                    curNode = node;
+    static int[] fastBoxBlur(int[] inArray, int width, int height){
+        int[] outArray = new int[height*width];
+        for(int i = 2; i < height-2; i++){
+            for(int j = 2; j < width-2; j++){
+                int rsum = 0, gsum = 0, bsum = 0;
+                for(int k = -2; k < 3; k++){
+                    for(int l = -2; l < 3; l++){
+                        if((k > -2 && k < 2) && (l > -2 && l  < 2) && (k != 0 && j != 0)){
+                            rsum += (inArray[(i+k)*width+j+l] >> 16 & 0xFF) << 1;
+                            gsum += (inArray[(i+k)*width+j+l] >> 8 & 0xFF) << 1;
+                            bsum += (inArray[(i+k)*width+j+l] & 0xFF) << 1;
+                        }else{
+                            rsum += (inArray[(i+k)*width+j+l] >> 16 & 0xFF);
+                            gsum += (inArray[(i+k)*width+j+l] >> 8 & 0xFF);
+                            bsum += (inArray[(i+k)*width+j+l] & 0xFF);
+                        }
+                    }
                 }
-                curNode.setSelf(code);
-            }
-            curNode.isFinal = true;
-        }
-    }
-
-    ColorSequenceTree(int[] colorSequence) {
-        rootNode = new ColorSequenceTreeNode();
-        currentNode = rootNode;
-        ColorSequenceTreeNode curNode = rootNode;
-        for(int code : colorSequence) {
-            ColorSequenceTreeNode node = new ColorSequenceTreeNode();
-            curNode.setBranch(code, node);
-            curNode = node;
-        }
-        curNode.isFinal = true;
-    }
-
-    void addColorSequence(int[] colorSequence) {
-        ColorSequenceTreeNode curNode = rootNode;
-        for(int code : colorSequence) {
-            if(curNode.hasChild(code)) {
-                curNode = curNode.getBranch(code);
-            } else {
-                ColorSequenceTreeNode node = new ColorSequenceTreeNode();
-                curNode.setBranch(code, node);
-                curNode = node;
+                rsum >>= 5;
+                gsum >>= 5;
+                bsum >>= 5;
+                outArray[i*width+j] = rsum << 16 | gsum << 8 | bsum;
+                
+                
             }
         }
+        return outArray;
     }
+    
+    static void edgeRemoveOutlier(int[][] inArray, int[] edgeDetect){
+        int width = inArray[0].length;
+        for(int i = 0; i < width; i++){
+            boolean flag = false;
+            for(int k = -2; k < 3; k++){
+                for(int l = -2; l < 3; l++){
+                   try{
+                       if(edgeDetect[(inArray[0][i] + k) * width + i + l] > 32){
+                            flag = true;
+                       }
+                   } catch(IndexOutOfBoundsException e){
 
-    void reset() {
-        currentNode = rootNode;
-    }
-
-    void progress(int code) {
-        if(currentNode.hasChild(code)) {
-            currentNode = currentNode.getBranch(code);
+                   }
+                }
+            }
+            if(!flag){
+                inArray[0][i] = -1;
+                inArray[1][i] = -1;
+            }
         }
     }
 
-    boolean hasNext(int code) {
-        return currentNode.hasChild(code);
+    static int[] convertToMono(int[] inArray){
+        int[] outArray = new int[inArray.length];
+        for(int i = 0; i < inArray.length; i++){
+           outArray[i] = ((inArray[i] >> 16 & 0xFF) + (inArray[i] >> 8 & 0xFF) + (inArray[i] & 0xFF)) / 3;
+        }
+        return outArray;
     }
 
-    boolean reachedEnd() {
-        return currentNode.isFinal;
+    static String heightsToCSV(int[][] heightsArray) {
+        String out = "";
+        for(int i = 0; i < heightsArray[0].length; i ++) {
+            out += i + ", " + heightsArray[0][i] + ", " + heightsArray[1][i] + "\n";
+        }
+        return out;
     }
 
-    // @Override
-    // public String toString() {
-    //     return rootNode.toString();
-    // }
+    static void writeCSV(String toWrite, String fileName) {
+        try (PrintStream outCSV = new PrintStream(new FileOutputStream(fileName))) {
+            outCSV.print(toWrite);
+        } catch(FileNotFoundException e) {
 
+        }
+    }
 }
 
-class ColorSequenceTreeNode {
-    private ColorSequenceTreeNode[] branches;
-    boolean isFinal = true;
-
-    ColorSequenceTreeNode() {
-        this.branches = new ColorSequenceTreeNode[12];
-    }
-
-    ColorSequenceTreeNode(ColorSequenceTreeNode ... nodes) {
-        int index = 0;
-        isFinal = false;
-        if(nodes.length > branches.length ) {
-            //raise error
-        }
-        for(ColorSequenceTreeNode node : nodes) {
-            branches[index] = node;
-            index++;
-        }
-    }
-
-    ColorSequenceTreeNode(int startCode, ColorSequenceTreeNode... nodes) {
-        int index = startCode;
-        isFinal = false;
-        if(nodes.length + startCode > branches.length ) {
-            //raise error
-        }
-        for(ColorSequenceTreeNode node : nodes) {
-            branches[index] = node;
-            index++;
-        }
-    }
-
-    public boolean hasChild(int code) {
-        return branches[code] != null;
-    }
-
-    public ColorSequenceTreeNode getBranch(int code) {
-        return branches[code];
-    }
-
-    public void setBranch(int code, ColorSequenceTreeNode node) {
-        isFinal = false;
-        branches[code] = node;
-    }
-
-    public void setSelf(int code) {
-        branches[code] = this;
-    }
-
-    // @Override
-    // public String toString() {
-    //     String out = "(\n";
-    //     int i = 0;
-    //     for(ColorSequenceTreeNode node : branches) {
-    //         if(node == null) {
-    //             out += "/\n";
-    //         } else {
-    //             out += i + "|" + node.toString() + "\n";
-    //         }
-    //         i ++;
-    //     }
-    //     out += ")";
-    //     return out;
-    // }
-
-}
